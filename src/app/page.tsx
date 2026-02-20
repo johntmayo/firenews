@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Digest } from "@/lib/digest";
+import type { Digest, Citation } from "@/lib/digest";
 
 function FireIcon() {
   return (
@@ -18,6 +18,48 @@ function FireIcon() {
         clipRule="evenodd"
       />
     </svg>
+  );
+}
+
+/**
+ * Renders a text string that contains [N] citation markers as inline
+ * superscript links. e.g. "Roads closed[3][7]" → "Roads closed³⁷" (linked).
+ */
+function CitedText({
+  text,
+  citations,
+}: {
+  text: string;
+  citations: Citation[];
+}) {
+  const citationMap = new Map(citations.map((c) => [c.index, c]));
+  // Split on [N] markers, keeping the delimiters
+  const parts = text.split(/(\[\d+\])/g);
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = part.match(/^\[(\d+)\]$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          const citation = citationMap.get(num);
+          if (citation) {
+            return (
+              <sup key={i}>
+                <a
+                  href={`#ref-${num}`}
+                  className="text-amber-700 hover:text-amber-900 font-sans font-semibold no-underline hover:underline"
+                  title={citation.title}
+                >
+                  {num}
+                </a>
+              </sup>
+            );
+          }
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
   );
 }
 
@@ -68,6 +110,8 @@ export default function Home() {
         timeStyle: "short",
       })
     : null;
+
+  const citations = digest?.citations ?? [];
 
   return (
     <main className="min-h-screen bg-[#faf9f6]">
@@ -130,7 +174,7 @@ export default function Home() {
 
             {/* Lede / intro */}
             <p className="text-lg leading-relaxed text-stone-700 mb-8 border-l-4 border-amber-500 pl-4 italic">
-              {digest.intro}
+              <CitedText text={digest.intro} citations={citations} />
             </p>
 
             {/* Rule */}
@@ -147,7 +191,7 @@ export default function Home() {
                     </h3>
                     <div className="w-10 h-0.5 bg-amber-300 mb-3" />
                     <p className="text-base leading-relaxed text-stone-700">
-                      {section.body}
+                      <CitedText text={section.body} citations={citations} />
                     </p>
                   </section>
                 ))}
@@ -158,22 +202,49 @@ export default function Home() {
               </p>
             )}
 
+            {/* References */}
+            {citations.length > 0 && (
+              <section className="mt-12 pt-6 border-t-2 border-stone-200">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500 mb-4 font-sans">
+                  Sources
+                </h3>
+                <ol className="space-y-2">
+                  {citations.map((c) => (
+                    <li
+                      key={c.index}
+                      id={`ref-${c.index}`}
+                      className="flex gap-3 text-xs text-stone-500 font-sans leading-snug scroll-mt-6"
+                    >
+                      <span className="text-amber-700 font-semibold shrink-0 w-5 text-right">
+                        {c.index}.
+                      </span>
+                      <span>
+                        <a
+                          href={c.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-amber-700 underline hover:text-amber-900 break-words"
+                        >
+                          {c.title}
+                        </a>
+                        <span className="text-stone-400 ml-1">— {c.source}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
+
             {/* Footer */}
-            <footer className="mt-14 pt-6 border-t border-stone-200 text-xs text-stone-400 space-y-2">
+            <footer className="mt-10 pt-6 border-t border-stone-200 text-xs text-stone-400 font-sans space-y-2">
               <p>
                 Digest synthesized from {digest.articleCount} article
                 {digest.articleCount !== 1 ? "s" : ""} using Claude AI.
-                Sources include Pasadena Star-News, LAist, Google News, and
-                other regional outlets.
+                Always verify critical safety information directly with
+                official sources.
               </p>
-              <p>
-                Always verify critical safety information directly with official
-                sources.
-              </p>
-              <p className="pt-2">
-                <strong className="text-stone-500">
-                  Emergency Resources:
-                </strong>{" "}
+              <p className="pt-1">
+                <strong className="text-stone-500">Emergency Resources:</strong>{" "}
                 <a
                   href="https://www.disasterassistance.gov"
                   target="_blank"
