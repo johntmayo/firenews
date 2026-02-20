@@ -26,7 +26,8 @@ export async function GET() {
       generatedAt: digest.generatedAt,
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("Refresh error:", err);
-    return NextResponse.json({ error: "Refresh failed" }, { status: 500 });
+    return NextResponse.json({ error: "Refresh failed", detail: message }, { status: 500 });
   }
 }
