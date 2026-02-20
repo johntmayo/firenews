@@ -1,9 +1,9 @@
 /**
  * Triggered by Vercel Cron at 6 AM Pacific daily to pre-generate the digest.
- * Secured with CRON_SECRET env var.
+ * Can also be hit manually in the browser to seed the first digest.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { fetchArticles } from "@/lib/feeds";
 import { generateDigest } from "@/lib/digest";
 import { writeCache } from "@/lib/cache";
@@ -12,14 +12,7 @@ import { format } from "date-fns";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export async function GET() {
   try {
     const articles = await fetchArticles();
     const date = format(new Date(), "MMMM d, yyyy");
