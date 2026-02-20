@@ -3,13 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Digest, Citation } from "@/lib/digest";
 
-// The API can return the digest, a stale digest, or a "generating" signal.
 type ApiResponse =
-  | (Digest & { stale?: boolean; generating?: never })
-  | { generating: true };
+  | (Digest & { stale?: boolean; pending?: never })
+  | { pending: true };
 
-function isGenerating(r: ApiResponse): r is { generating: true } {
-  return (r as { generating?: boolean }).generating === true;
+function isPending(r: ApiResponse): r is { pending: true } {
+  return (r as { pending?: boolean }).pending === true;
 }
 
 function FireIcon() {
@@ -31,8 +30,8 @@ function FireIcon() {
 }
 
 /**
- * Renders a text string that may contain [N] citation markers as inline
- * superscript links that jump to the numbered reference at the bottom.
+ * Renders body text that may contain [N] citation markers as inline
+ * superscript links that jump to the numbered reference list.
  */
 function CitedText({
   text,
@@ -90,74 +89,42 @@ function Skeleton() {
   );
 }
 
-/** Shown while the digest is being generated for the first time. */
-function GeneratingState({ secondsWaited }: { secondsWaited: number }) {
-  return (
-    <div className="mt-10 space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="inline-block w-4 h-4 rounded-full border-2 border-amber-600 border-t-transparent animate-spin" />
-        <p className="text-sm text-stone-500">
-          Gathering today&rsquo;s news and writing the digest&hellip;
-        </p>
-      </div>
-      <Skeleton />
-      <p className="text-xs text-stone-400">
-        This takes about 30 seconds on first load.
-        {secondsWaited >= 20 && " Almost there — checking again shortly…"}
-      </p>
-    </div>
-  );
-}
-
 export default function Home() {
   const [digest, setDigest] = useState<Digest | null>(null);
   const [stale, setStale] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [secondsWaited, setSecondsWaited] = useState(0);
+  const [pending, setPending] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDigest = useCallback(() => {
+    setLoading(true);
+    setError(null);
     fetch("/api/digest")
       .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok && res.status !== 202)
+          throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<ApiResponse>;
       })
       .then((data) => {
-        if (isGenerating(data)) {
-          setGenerating(true);
+        if (isPending(data)) {
+          setPending(true);
+          setDigest(null);
         } else {
           setDigest(data);
           setStale(!!data.stale);
-          setGenerating(false);
+          setPending(false);
         }
+        setLoading(false);
       })
       .catch((err: Error) => {
         setError(err.message);
-        setGenerating(false);
+        setLoading(false);
       });
   }, []);
 
-  // Initial fetch
   useEffect(() => {
     fetchDigest();
   }, [fetchDigest]);
-
-  // While generating: poll every 6 seconds until we get a real digest
-  useEffect(() => {
-    if (!generating) return;
-    const interval = setInterval(() => {
-      setSecondsWaited((s) => s + 6);
-      fetchDigest();
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [generating, fetchDigest]);
-
-  // If stale: auto-refresh once after 45 s (enough time for background regen)
-  useEffect(() => {
-    if (!stale) return;
-    const timer = setTimeout(() => fetchDigest(), 45000);
-    return () => clearTimeout(timer);
-  }, [stale, fetchDigest]);
 
   const generatedTime = digest?.generatedAt
     ? new Date(digest.generatedAt).toLocaleString("en-US", {
@@ -192,35 +159,44 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Content */}
       <div className="max-w-2xl mx-auto px-4 py-10">
+        {/* Initial loading */}
+        {loading && <Skeleton />}
+
         {/* Error */}
-        {error && (
+        {error && !loading && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            <strong>Error loading digest:</strong> {error}.{" "}
-            <button
-              onClick={() => { setError(null); fetchDigest(); }}
-              className="underline"
-            >
+            <strong>Error:</strong> {error}.{" "}
+            <button onClick={fetchDigest} className="underline">
               Try again
             </button>
           </div>
         )}
 
-        {/* First-time generating state — nothing to show yet */}
-        {generating && !digest && !error && (
-          <GeneratingState secondsWaited={secondsWaited} />
+        {/* No digest yet — cron hasn't run since first deploy */}
+        {pending && !loading && (
+          <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 font-sans space-y-1">
+            <p className="font-semibold">Today&rsquo;s digest isn&rsquo;t ready yet.</p>
+            <p className="text-amber-700">
+              The digest is generated automatically at 5–6 AM Pacific time.
+              Check back then, or{" "}
+              <button onClick={fetchDigest} className="underline font-medium">
+                refresh
+              </button>{" "}
+              if you think it should be ready.
+            </p>
+          </div>
         )}
 
-        {/* Digest (fresh or stale) */}
-        {digest && (
+        {/* Digest */}
+        {digest && !loading && (
           <article style={{ fontFamily: "Georgia, serif" }}>
-            {/* Stale banner */}
+            {/* Stale banner — cron hasn't run yet today */}
             {stale && (
               <div className="mb-6 flex items-center justify-between gap-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 font-sans">
                 <span>
-                  Showing yesterday&rsquo;s digest — today&rsquo;s is being
-                  prepared in the background.
+                  Showing yesterday&rsquo;s digest — today&rsquo;s will be
+                  ready after 6 AM PT.
                 </span>
                 <button
                   onClick={fetchDigest}
@@ -251,7 +227,6 @@ export default function Home() {
               <CitedText text={digest.intro} citations={citations} />
             </p>
 
-            {/* Rule */}
             <div className="border-t-2 border-stone-200 mb-8" />
 
             {/* Sections */}
