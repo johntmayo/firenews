@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { Digest, Citation } from "@/lib/digest";
+
+// The API can return the digest, a stale digest, or a "generating" signal.
+type ApiResponse =
+  | (Digest & { stale?: boolean; generating?: never })
+  | { generating: true };
+
+function isGenerating(r: ApiResponse): r is { generating: true } {
+  return (r as { generating?: boolean }).generating === true;
+}
 
 function FireIcon() {
   return (
@@ -22,8 +31,8 @@ function FireIcon() {
 }
 
 /**
- * Renders a text string that contains [N] citation markers as inline
- * superscript links. e.g. "Roads closed[3][7]" → "Roads closed³⁷" (linked).
+ * Renders a text string that may contain [N] citation markers as inline
+ * superscript links that jump to the numbered reference at the bottom.
  */
 function CitedText({
   text,
@@ -33,7 +42,6 @@ function CitedText({
   citations: Citation[];
 }) {
   const citationMap = new Map(citations.map((c) => [c.index, c]));
-  // Split on [N] markers, keeping the delimiters
   const parts = text.split(/(\[\d+\])/g);
 
   return (
@@ -82,26 +90,74 @@ function Skeleton() {
   );
 }
 
+/** Shown while the digest is being generated for the first time. */
+function GeneratingState({ secondsWaited }: { secondsWaited: number }) {
+  return (
+    <div className="mt-10 space-y-4">
+      <div className="flex items-center gap-3">
+        <span className="inline-block w-4 h-4 rounded-full border-2 border-amber-600 border-t-transparent animate-spin" />
+        <p className="text-sm text-stone-500">
+          Gathering today&rsquo;s news and writing the digest&hellip;
+        </p>
+      </div>
+      <Skeleton />
+      <p className="text-xs text-stone-400">
+        This takes about 30 seconds on first load.
+        {secondsWaited >= 20 && " Almost there — checking again shortly…"}
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   const [digest, setDigest] = useState<Digest | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stale, setStale] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [secondsWaited, setSecondsWaited] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchDigest = useCallback(() => {
     fetch("/api/digest")
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json() as Promise<Digest>;
+        return res.json() as Promise<ApiResponse>;
       })
       .then((data) => {
-        setDigest(data);
-        setLoading(false);
+        if (isGenerating(data)) {
+          setGenerating(true);
+        } else {
+          setDigest(data);
+          setStale(!!data.stale);
+          setGenerating(false);
+        }
       })
       .catch((err: Error) => {
         setError(err.message);
-        setLoading(false);
+        setGenerating(false);
       });
   }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchDigest();
+  }, [fetchDigest]);
+
+  // While generating: poll every 6 seconds until we get a real digest
+  useEffect(() => {
+    if (!generating) return;
+    const interval = setInterval(() => {
+      setSecondsWaited((s) => s + 6);
+      fetchDigest();
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [generating, fetchDigest]);
+
+  // If stale: auto-refresh once after 45 s (enough time for background regen)
+  useEffect(() => {
+    if (!stale) return;
+    const timer = setTimeout(() => fetchDigest(), 45000);
+    return () => clearTimeout(timer);
+  }, [stale, fetchDigest]);
 
   const generatedTime = digest?.generatedAt
     ? new Date(digest.generatedAt).toLocaleString("en-US", {
@@ -138,25 +194,43 @@ export default function Home() {
 
       {/* Content */}
       <div className="max-w-2xl mx-auto px-4 py-10">
-        {loading && (
-          <>
-            <p className="text-sm text-stone-400 mb-4">
-              Gathering today&rsquo;s news&hellip; this may take up to 30
-              seconds on first load.
-            </p>
-            <Skeleton />
-          </>
-        )}
-
-        {error && !loading && (
+        {/* Error */}
+        {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            <strong>Error loading digest:</strong> {error}. Please refresh the
-            page.
+            <strong>Error loading digest:</strong> {error}.{" "}
+            <button
+              onClick={() => { setError(null); fetchDigest(); }}
+              className="underline"
+            >
+              Try again
+            </button>
           </div>
         )}
 
-        {digest && !loading && (
+        {/* First-time generating state — nothing to show yet */}
+        {generating && !digest && !error && (
+          <GeneratingState secondsWaited={secondsWaited} />
+        )}
+
+        {/* Digest (fresh or stale) */}
+        {digest && (
           <article style={{ fontFamily: "Georgia, serif" }}>
+            {/* Stale banner */}
+            {stale && (
+              <div className="mb-6 flex items-center justify-between gap-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800 font-sans">
+                <span>
+                  Showing yesterday&rsquo;s digest — today&rsquo;s is being
+                  prepared in the background.
+                </span>
+                <button
+                  onClick={fetchDigest}
+                  className="shrink-0 font-semibold underline hover:text-amber-900"
+                >
+                  Check now
+                </button>
+              </div>
+            )}
+
             {/* Dateline */}
             <p className="text-xs text-stone-400 uppercase tracking-widest mb-4">
               {digest.date}
@@ -172,7 +246,7 @@ export default function Home() {
               {digest.headline}
             </h2>
 
-            {/* Lede / intro */}
+            {/* Lede */}
             <p className="text-lg leading-relaxed text-stone-700 mb-8 border-l-4 border-amber-500 pl-4 italic">
               <CitedText text={digest.intro} citations={citations} />
             </p>
@@ -227,7 +301,9 @@ export default function Home() {
                         >
                           {c.title}
                         </a>
-                        <span className="text-stone-400 ml-1">— {c.source}</span>
+                        <span className="text-stone-400 ml-1">
+                          — {c.source}
+                        </span>
                       </span>
                     </li>
                   ))}

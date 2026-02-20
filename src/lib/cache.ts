@@ -1,48 +1,58 @@
 /**
- * Simple file-based cache for the digest, so we don't call Claude on every page load.
- * On Vercel, the /tmp directory is writable and persists across warm invocations.
+ * Digest cache with two backends:
+ *
+ * 1. Vercel KV (production) — set KV_REST_API_URL + KV_REST_API_TOKEN env vars.
+ *    KV is shared across every serverless instance, so the cache is always
+ *    consistent regardless of which Lambda handles a given request.
+ *
+ * 2. /tmp fallback (local dev) — good enough when there's only one process.
  */
 
 import fs from "fs/promises";
 import path from "path";
 import type { Digest } from "./digest";
 
-const CACHE_DIR = path.join("/tmp", "firenews-cache");
-const CACHE_FILE = path.join(CACHE_DIR, "digest.json");
+const KV_KEY = "altadena:digest";
+const KV_TTL_SECONDS = 60 * 60 * 48; // 48 h — well beyond a single day
+const TMP_FILE = path.join("/tmp", "firenews-digest.json");
 
-async function ensureCacheDir() {
-  await fs.mkdir(CACHE_DIR, { recursive: true });
-}
+const hasKV = !!(
+  process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
+);
 
 export async function readCache(): Promise<Digest | null> {
+  if (hasKV) {
+    const { kv } = await import("@vercel/kv");
+    const data = await kv.get<Digest>(KV_KEY);
+    return data ?? null;
+  }
   try {
-    await ensureCacheDir();
-    const raw = await fs.readFile(CACHE_FILE, "utf-8");
-    const data = JSON.parse(raw) as Digest;
-    return data;
+    const raw = await fs.readFile(TMP_FILE, "utf-8");
+    return JSON.parse(raw) as Digest;
   } catch {
     return null;
   }
 }
 
 export async function writeCache(digest: Digest): Promise<void> {
-  await ensureCacheDir();
-  await fs.writeFile(CACHE_FILE, JSON.stringify(digest, null, 2), "utf-8");
+  if (hasKV) {
+    const { kv } = await import("@vercel/kv");
+    await kv.set(KV_KEY, digest, { ex: KV_TTL_SECONDS });
+    return;
+  }
+  await fs.writeFile(TMP_FILE, JSON.stringify(digest), "utf-8");
 }
 
-/** Returns true if the cached digest is still fresh (generated today, Pacific time). */
+/** Returns true if the cached digest was generated today (Pacific time). */
 export function isCacheFresh(digest: Digest): boolean {
-  const now = new Date();
-  const pacificNow = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })
-  );
-  const todayPacific = pacificNow.toISOString().split("T")[0];
+  const toDay = (d: Date) =>
+    new Date(
+      d.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })
+    )
+      .toISOString()
+      .split("T")[0];
 
-  const generated = new Date(digest.generatedAt);
-  const pacificGenerated = new Date(
-    generated.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })
-  );
-  const generatedDay = pacificGenerated.toISOString().split("T")[0];
-
-  return todayPacific === generatedDay;
+  const todayPT = toDay(new Date());
+  const generatedPT = toDay(new Date(digest.generatedAt));
+  return todayPT === generatedPT;
 }
