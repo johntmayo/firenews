@@ -62,25 +62,13 @@ CITATION RULES — follow these exactly:
 ARTICLES:
 ${articleList}
 
-Respond ONLY with valid JSON in this exact schema:
-{
-  "headline": "Short, compelling headline for today's digest (e.g. 'Altadena Morning Digest – Feb 20, 2026')",
-  "intro": "2-3 sentence overview of today's biggest themes, with [N] citations after every specific fact.",
-  "sections": [
-    {
-      "heading": "Section heading (choose from: 'Fire & Safety Updates', 'Recovery & Rebuilding', 'Community Resources', 'Insurance & Legal', 'Environment & Air Quality', 'Local Government', 'Notable Stories' — or invent one that fits)",
-      "body": "3-6 sentences with [N] inline citations after every specific fact, statistic, name, date, or claim. Be specific and compassionate. Surface deadlines, phone numbers, and resources when present."
-    }
-  ],
-  "citations": [
-    {
-      "index": 1,
-      "title": "Exact article title",
-      "url": "https://...",
-      "source": "Source name"
-    }
-  ]
-}
+Call the create_digest tool with:
+- headline: Short, compelling headline for today's digest (e.g. 'Altadena Morning Digest – Feb 20, 2026')
+- intro: 2-3 sentence overview of today's biggest themes, with [N] citations after every specific fact
+- sections: 2-6 thematic sections, each with a heading and a body of 3-6 sentences with [N] inline citations
+  - Choose headings from: 'Fire & Safety Updates', 'Recovery & Rebuilding', 'Community Resources', 'Insurance & Legal', 'Environment & Air Quality', 'Local Government', 'Notable Stories' — or invent one that fits
+  - Surface deadlines, phone numbers, and resources when present
+- citations: only the articles you actually cited with [N] in the text, each with index, title, url, source
 
 Additional guidelines:
 - Only include articles in "citations" that you actually referenced with [N] in the text.
@@ -90,22 +78,55 @@ Additional guidelines:
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 3000,
+    max_tokens: 8000,
+    tools: [
+      {
+        name: "create_digest",
+        description: "Create a structured morning news digest",
+        input_schema: {
+          type: "object" as const,
+          properties: {
+            headline: { type: "string" },
+            intro: { type: "string" },
+            sections: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  heading: { type: "string" },
+                  body: { type: "string" },
+                },
+                required: ["heading", "body"],
+              },
+            },
+            citations: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  index: { type: "number" },
+                  title: { type: "string" },
+                  url: { type: "string" },
+                  source: { type: "string" },
+                },
+                required: ["index", "title", "url", "source"],
+              },
+            },
+          },
+          required: ["headline", "intro", "sections", "citations"],
+        },
+      },
+    ],
+    tool_choice: { type: "tool", name: "create_digest" },
     messages: [{ role: "user", content: prompt }],
   });
 
-  const content = message.content[0];
-  if (content.type !== "text") {
+  const toolUseBlock = message.content.find((b) => b.type === "tool_use");
+  if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
     throw new Error("Unexpected response type from Claude");
   }
 
-  // Extract JSON (Claude sometimes wraps it in markdown fences)
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Could not parse JSON from Claude response");
-  }
-
-  const parsed = JSON.parse(jsonMatch[0]) as {
+  const parsed = toolUseBlock.input as {
     headline: string;
     intro: string;
     sections: DigestSection[];
