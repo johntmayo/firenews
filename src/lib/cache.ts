@@ -41,11 +41,14 @@ export async function readCache(): Promise<Digest | null> {
 
 export async function writeCache(digest: Digest): Promise<void> {
   if (hasBlob) {
-    const { put } = await import("@vercel/blob");
+    const { put, list, del } = await import("@vercel/blob");
+    // Delete existing blob first — @vercel/blob v2 doesn't support allowOverwrite
+    const { blobs } = await list({ prefix: BLOB_PATHNAME });
+    const existing = blobs.find((b) => b.pathname === BLOB_PATHNAME);
+    if (existing) await del(existing.url);
     await put(BLOB_PATHNAME, JSON.stringify(digest), {
       access: "private",
       addRandomSuffix: false,
-      allowOverwrite: true,
       contentType: "application/json",
     });
     return;
