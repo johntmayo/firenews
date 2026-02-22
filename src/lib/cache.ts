@@ -20,11 +20,14 @@ const hasBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 
 export async function readCache(): Promise<Digest | null> {
   if (hasBlob) {
-    const { list } = await import("@vercel/blob");
+    const { list, head } = await import("@vercel/blob");
     const { blobs } = await list({ prefix: BLOB_PATHNAME });
     const blob = blobs.find((b) => b.pathname === BLOB_PATHNAME);
     if (!blob) return null;
-    const res = await fetch(blob.downloadUrl, { cache: "no-store" });
+    // For private blobs, list() returns an empty downloadUrl.
+    // head() generates a fresh signed downloadUrl that actually works.
+    const meta = await head(blob.url);
+    const res = await fetch(meta.downloadUrl, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json() as Promise<Digest>;
   }
