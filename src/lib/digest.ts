@@ -49,36 +49,28 @@ export async function generateDigest(
     )
     .join("\n\n---\n\n");
 
-  const prompt = `You are a compassionate, thorough journalist writing a morning news digest for residents of Altadena, California and people affected by the Eaton Fire. Today's date is ${date}.
+  const prompt = `You are a compassionate journalist writing a morning news digest for Altadena, California residents affected by the Eaton Fire. Today is ${date}.
 
-Below are numbered news articles. Synthesize them into a structured morning digest with FREQUENT inline citations.
+Below are numbered news articles. Write a CONCISE digest — keep each section to 2-3 sentences, total output must be brief.
 
-CITATION RULES — follow these exactly:
-- Every specific fact, statistic, name, date, dollar amount, place, or claim MUST be followed immediately by [N] where N is the article number it came from.
-- Aim for at least one [N] citation per sentence. Multiple citations per sentence are encouraged when a claim draws on more than one article (e.g. "Roads are still closed[3][7]").
-- Do NOT cite things you made up — only cite article numbers that actually support the statement.
-- The "intro" field should also contain inline citations for any specific facts mentioned.
+CITATION RULES:
+- Add [N] after specific facts, statistics, names, dollar amounts, or dates (e.g. "Roads reopened[3]").
+- Only cite article numbers that actually support the statement. Do not cite things you made up.
 
 ARTICLES:
 ${articleList}
 
 Call the create_digest tool with:
-- headline: Short, compelling headline for today's digest (e.g. 'Altadena Morning Digest – Feb 20, 2026')
-- intro: 2-3 sentence overview of today's biggest themes, with [N] citations after every specific fact
-- sections: 2-6 thematic sections, each with a heading and a body of 3-6 sentences with [N] inline citations
-  - Choose headings from: 'Fire & Safety Updates', 'Recovery & Rebuilding', 'Community Resources', 'Insurance & Legal', 'Environment & Air Quality', 'Local Government', 'Notable Stories' — or invent one that fits
+- headline: Short headline (e.g. 'Altadena Morning Digest – Feb 20, 2026')
+- intro: 1-2 sentences summarizing today's biggest themes, with [N] citations for any specific facts
+- sections: 3-5 thematic sections, each with a heading and 2-3 sentences with [N] citations
+  - Headings: 'Fire & Safety Updates', 'Recovery & Rebuilding', 'Community Resources', 'Insurance & Legal', 'Environment & Air Quality', 'Local Government', 'Notable Stories'
   - Surface deadlines, phone numbers, and resources when present
-- citations: only the articles you actually cited with [N] in the text, each with index, title, url, source
-
-Additional guidelines:
-- Only include articles in "citations" that you actually referenced with [N] in the text.
-- Group articles into 2-6 thematic sections based on what is actually in the news.
-- Be specific and factual — no filler or generic statements.
-- Use plain, clear language — no jargon.`;
+- citations: only articles you actually cited with [N], each with index, title, url, source`;
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 8000,
+    max_tokens: 3000,
     tools: [
       {
         name: "create_digest",
