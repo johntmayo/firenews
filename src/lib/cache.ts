@@ -24,7 +24,7 @@ export async function readCache(): Promise<Digest | null> {
     const { blobs } = await list({ prefix: BLOB_PATHNAME });
     const blob = blobs.find((b) => b.pathname === BLOB_PATHNAME);
     if (!blob) return null;
-    const res = await fetch(blob.url, { cache: "no-store" });
+    const res = await fetch(blob.downloadUrl, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json() as Promise<Digest>;
   }
@@ -40,7 +40,7 @@ export async function writeCache(digest: Digest): Promise<void> {
   if (hasBlob) {
     const { put } = await import("@vercel/blob");
     await put(BLOB_PATHNAME, JSON.stringify(digest), {
-      access: "public",
+      access: "private",
       addRandomSuffix: false,
       contentType: "application/json",
     });

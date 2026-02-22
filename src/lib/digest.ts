@@ -51,22 +51,18 @@ export async function generateDigest(
 
   const prompt = `You are a compassionate journalist writing a morning news digest for Altadena, California residents affected by the Eaton Fire. Today is ${date}.
 
-Below are numbered news articles. Write a CONCISE digest — keep each section to 2-3 sentences, total output must be brief.
-
-CITATION RULES:
-- Add [N] after specific facts, statistics, names, dollar amounts, or dates (e.g. "Roads reopened[3]").
-- Only cite article numbers that actually support the statement. Do not cite things you made up.
+Below are numbered news articles. Write a clear, concise digest in plain prose — no inline citation markers needed. Keep each section to 2-3 sentences.
 
 ARTICLES:
 ${articleList}
 
 Call the create_digest tool with:
 - headline: Short headline (e.g. 'Altadena Morning Digest – Feb 20, 2026')
-- intro: 1-2 sentences summarizing today's biggest themes, with [N] citations for any specific facts
-- sections: 3-5 thematic sections, each with a heading and 2-3 sentences with [N] citations
+- intro: 1-2 sentences summarizing today's biggest themes
+- sections: 3-5 thematic sections, each with a heading and 2-3 sentences of plain prose
   - Headings: 'Fire & Safety Updates', 'Recovery & Rebuilding', 'Community Resources', 'Insurance & Legal', 'Environment & Air Quality', 'Local Government', 'Notable Stories'
   - Surface deadlines, phone numbers, and resources when present
-- citations: only articles you actually cited with [N], each with index, title, url, source`;
+- citations: list every article you drew facts from when writing the digest, with index (its number from the list above), title, url, source`;
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",

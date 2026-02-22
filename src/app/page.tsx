@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import type { Digest, Citation } from "@/lib/digest";
+import type { Digest } from "@/lib/digest";
 
 type ApiResponse =
   | (Digest & { stale?: boolean; pending?: never })
@@ -29,46 +29,6 @@ function FireIcon() {
   );
 }
 
-/**
- * Renders body text that may contain [N] citation markers as inline
- * superscript links that jump to the numbered reference list.
- */
-function CitedText({
-  text,
-  citations,
-}: {
-  text: string;
-  citations: Citation[];
-}) {
-  const citationMap = new Map(citations.map((c) => [c.index, c]));
-  const parts = text.split(/(\[\d+\])/g);
-
-  return (
-    <>
-      {parts.map((part, i) => {
-        const match = part.match(/^\[(\d+)\]$/);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          const citation = citationMap.get(num);
-          if (citation) {
-            return (
-              <sup key={i}>
-                <a
-                  href={`#ref-${num}`}
-                  className="text-amber-700 hover:text-amber-900 font-sans font-semibold no-underline hover:underline"
-                  title={citation.title}
-                >
-                  {num}
-                </a>
-              </sup>
-            );
-          }
-        }
-        return <span key={i}>{part}</span>;
-      })}
-    </>
-  );
-}
 
 function Skeleton() {
   return (
@@ -224,7 +184,7 @@ export default function Home() {
 
             {/* Lede */}
             <p className="text-lg leading-relaxed text-stone-700 mb-8 border-l-4 border-amber-500 pl-4 italic">
-              <CitedText text={digest.intro} citations={citations} />
+              {digest.intro}
             </p>
 
             <div className="border-t-2 border-stone-200 mb-8" />
@@ -240,7 +200,7 @@ export default function Home() {
                     </h3>
                     <div className="w-10 h-0.5 bg-amber-300 mb-3" />
                     <p className="text-base leading-relaxed text-stone-700">
-                      <CitedText text={section.body} citations={citations} />
+                      {section.body}
                     </p>
                   </section>
                 ))}
@@ -251,38 +211,30 @@ export default function Home() {
               </p>
             )}
 
-            {/* References */}
+            {/* Sources */}
             {citations.length > 0 && (
               <section className="mt-12 pt-6 border-t-2 border-stone-200">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-stone-500 mb-4 font-sans">
                   Sources
                 </h3>
-                <ol className="space-y-2">
+                <ul className="space-y-2">
                   {citations.map((c) => (
                     <li
                       key={c.index}
-                      id={`ref-${c.index}`}
-                      className="flex gap-3 text-xs text-stone-500 font-sans leading-snug scroll-mt-6"
+                      className="text-xs text-stone-500 font-sans leading-snug"
                     >
-                      <span className="text-amber-700 font-semibold shrink-0 w-5 text-right">
-                        {c.index}.
-                      </span>
-                      <span>
-                        <a
-                          href={c.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-amber-700 underline hover:text-amber-900 break-words"
-                        >
-                          {c.title}
-                        </a>
-                        <span className="text-stone-400 ml-1">
-                          — {c.source}
-                        </span>
-                      </span>
+                      <a
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-amber-700 underline hover:text-amber-900 break-words"
+                      >
+                        {c.title}
+                      </a>
+                      <span className="text-stone-400 ml-1">— {c.source}</span>
                     </li>
                   ))}
-                </ol>
+                </ul>
               </section>
             )}
 
