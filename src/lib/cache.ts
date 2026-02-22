@@ -45,6 +45,7 @@ export async function writeCache(digest: Digest): Promise<void> {
     await put(BLOB_PATHNAME, JSON.stringify(digest), {
       access: "private",
       addRandomSuffix: false,
+      allowOverwrite: true,
       contentType: "application/json",
     });
     return;
