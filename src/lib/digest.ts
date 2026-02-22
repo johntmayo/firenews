@@ -78,7 +78,7 @@ Additional guidelines:
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 8000,
+    max_tokens: 3000,
     tools: [
       {
         name: "create_digest",

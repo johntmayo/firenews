@@ -108,6 +108,6 @@ export async function fetchArticles(): Promise<Article[]> {
     (a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
   );
 
-  // Return at most 40 articles for digest generation
-  return allArticles.slice(0, 40);
+  // Return at most 25 articles for digest generation
+  return allArticles.slice(0, 25);
 }
