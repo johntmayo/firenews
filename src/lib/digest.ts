@@ -129,6 +129,8 @@ Call the create_digest tool with:
     throw new Error("Unexpected response type from Claude");
   }
 
+  console.log("[digest] raw tool input:", JSON.stringify(toolUseBlock.input, null, 2));
+
   const parsed = toolUseBlock.input as {
     headline: string;
     intro: string;
