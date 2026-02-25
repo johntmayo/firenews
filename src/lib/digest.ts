@@ -51,7 +51,7 @@ export async function generateDigest(
 
   const prompt = `You are a compassionate journalist writing a morning news digest for Altadena, California residents affected by the Eaton Fire. Today is ${date}.
 
-Below are numbered news articles. Write a clear, concise digest in plain prose — no inline citation markers needed. Keep each section to 2-3 sentences.
+Below are numbered news articles. Write a clear, concise digest in plain prose. Do not put citation markers like [1] inside the prose — keep the text clean and readable. Keep each section to 2-3 sentences.
 
 ARTICLES:
 ${articleList}
@@ -62,7 +62,7 @@ Call the create_digest tool with:
 - sections: 3-5 thematic sections, each with a heading and 2-3 sentences of plain prose
   - Headings: 'Fire & Safety Updates', 'Recovery & Rebuilding', 'Community Resources', 'Insurance & Legal', 'Environment & Air Quality', 'Local Government', 'Notable Stories'
   - Surface deadlines, phone numbers, and resources when present
-- citations: list every article you drew facts from when writing the digest, with index (its number from the list above), title, url, source`;
+- citations: REQUIRED. For every article you drew any fact from, include its index (from the numbered list above), title, url, and source. Do not leave this empty.`;
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
