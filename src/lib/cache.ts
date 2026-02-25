@@ -44,7 +44,7 @@ export async function writeCache(digest: Digest): Promise<void> {
     const existing = blobs.find((b) => b.pathname === BLOB_PATHNAME);
     if (existing) await del(existing.url);
     await put(BLOB_PATHNAME, JSON.stringify(digest), {
-      access: "private",
+      access: "public",
       addRandomSuffix: false,
       contentType: "application/json",
     });
