@@ -89,13 +89,28 @@ Call the create_digest tool with:
             },
             citations: {
               type: "array",
+              description:
+                "REQUIRED. Every article you drew any fact from. Must not be empty — include every source used.",
+              minItems: 1,
               items: {
                 type: "object",
                 properties: {
-                  index: { type: "number" },
-                  title: { type: "string" },
-                  url: { type: "string" },
-                  source: { type: "string" },
+                  index: {
+                    type: "number",
+                    description: "The article's number from the ARTICLES list",
+                  },
+                  title: {
+                    type: "string",
+                    description: "The article's title",
+                  },
+                  url: {
+                    type: "string",
+                    description: "The article's URL",
+                  },
+                  source: {
+                    type: "string",
+                    description: "The news outlet or website name",
+                  },
                 },
                 required: ["index", "title", "url", "source"],
               },
@@ -113,6 +128,8 @@ Call the create_digest tool with:
   if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
     throw new Error("Unexpected response type from Claude");
   }
+
+  console.log("[digest] raw tool input:", JSON.stringify(toolUseBlock.input, null, 2));
 
   const parsed = toolUseBlock.input as {
     headline: string;
